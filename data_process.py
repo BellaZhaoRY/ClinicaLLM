@@ -130,6 +130,47 @@ def data_process_4_physician_order():
         with open(os.path.join(prepro_data_dir_path, str(vid), "医嘱.json"), "w", encoding="utf-8") as f:
             json.dump(all_info_4_vid, f, ensure_ascii=False, indent=4)
 
+def data_process_4_other_results(file_name):
+    other_results = pd.read_excel(file_name)
+    num_lines = len(other_results)
+    vid_2_content = dict()
+    for i in range(num_lines):
+        data_dict = dict(other_results.loc[i])
+        check_item = data_dict['检查项目']
+        check_observation = data_dict['检查所见']
+        check_conclusion = data_dict['检查结论']
+        content = '检查项目：' + check_item + '\t检查所见：' + check_observation + '\t检查结论：' + check_conclusion + '\n'
+
+        vid = str(data_dict['就诊流水号'])
+        if vid not in vid_2_content:
+            vid_2_content[vid] = ""
+        vid_2_content[vid] += content
+
+    for vid, content in vid_2_content.items():
+        if content == "":
+            content = "未进行胸片检查或其他检查。\n"
+
+        with open(os.path.join(prepro_data_dir_path, str(vid), "其他检查结果.json"), "w", encoding="utf-8") as f:
+            json.dump({"": content}, f, ensure_ascii=False, indent=4)
+
+def data_process_4_ultrasonic_results(file_name):
+    ultrasonic_results = pd.read_excel(file_name)
+    num_lines = len(ultrasonic_results)
+    vid_2_content = dict()
+    for i in range(num_lines):
+        data_dict = dict(ultrasonic_results.loc[i])
+        check_observation = data_dict['检查所见']
+        check_conclusion = data_dict['检查结论']
+        content = '超声心电图检查所见：\n' + check_observation + '\n检查结论：\n' + check_conclusion + '\n\n'
+
+        vid = str(data_dict['就诊流水号'])
+        if vid not in vid_2_content:
+            vid_2_content[vid] = ""
+        vid_2_content[vid] += content
+
+    for vid, content in vid_2_content.items():
+        with open(os.path.join(prepro_data_dir_path, str(vid), "超声心电图结果.json"), "w", encoding="utf-8") as f:
+            json.dump({"": content}, f, ensure_ascii=False, indent=4)
 
 def data_process_4_xlsx(file_name):
     # 将 医嘱.xlsx文件 根据一级索引的方式 保存在本地vid.json:{医嘱优先级_医嘱类型：str结果拼接}
@@ -275,6 +316,10 @@ if __name__ == '__main__':
     # data_process_4_xlsx("5-超声心动图结果.xlsx")
     # data_process_4_xlsx("6-其他检查结果.xlsx")
     # data_process_4_xlsx("7-医嘱.xlsx")
+
+    data_process_4_ultrasonic_results("5-超声心动图结果.xlsx")
+    data_process_4_other_results("6-其他检查结果.xlsx")
+    
     main_4_simi_resource()
 
 
