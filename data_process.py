@@ -131,7 +131,9 @@ def data_process_4_physician_order():
             json.dump(all_info_4_vid, f, ensure_ascii=False, indent=4)
 
 def data_process_4_other_results(file_name):
-    other_results = pd.read_excel(file_name)
+    file_path = os.path.join(orig_data_dir_path, file_name)
+    other_results = pd.read_excel(file_path)
+    print(f"{file_path},{os.path.exists(file_path)}")
     num_lines = len(other_results)
     vid_2_content = dict()
     for i in range(num_lines):
@@ -154,13 +156,18 @@ def data_process_4_other_results(file_name):
             json.dump({"": content}, f, ensure_ascii=False, indent=4)
 
 def data_process_4_ultrasonic_results(file_name):
-    ultrasonic_results = pd.read_excel(file_name)
+    file_path = os.path.join(orig_data_dir_path, file_name)
+    ultrasonic_results = pd.read_excel(file_path)
+    print(f"{file_path},{os.path.exists(file_path)}")
     num_lines = len(ultrasonic_results)
     vid_2_content = dict()
     for i in range(num_lines):
         data_dict = dict(ultrasonic_results.loc[i])
         check_observation = data_dict['检查所见']
-        check_conclusion = data_dict['检查结论']
+        if "检查结论" in data_dict:
+            check_conclusion = data_dict['检查结论']
+        elif "检查结论（超声大夫给出的诊断结论，不是临床诊断结果）" in data_dict:
+            check_conclusion = data_dict['检查结论（超声大夫给出的诊断结论，不是临床诊断结果）']
         content = '超声心电图检查所见：\n' + check_observation + '\n检查结论：\n' + check_conclusion + '\n\n'
 
         vid = str(data_dict['就诊流水号'])
