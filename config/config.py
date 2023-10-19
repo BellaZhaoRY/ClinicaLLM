@@ -9,6 +9,7 @@ program_dir_path = os.path.join(config_dir_path, os.path.pardir)
 data_dir_path = os.path.join(program_dir_path, 'data')
 orig_data_dir_path = os.path.join(data_dir_path, 'orig_datas')
 clinical_data_dir_path = os.path.join(orig_data_dir_path, '4-病历文书')
+stem_file = "STEMI数据项说明_备注说明_补充信息_v2.xlsx"
 prepro_data_dir_path = os.path.join(data_dir_path, 'prepro_data')
 prepro_orig_data_dir_path = os.path.join(data_dir_path, 'prepro_orig_datas')
 results_dir_path = os.path.join(program_dir_path, 'results')
@@ -34,5 +35,6 @@ sc_table_dict_re = {"admit_note":"^\S\s\S\s\S\s\S|^[\u4e00-\u9fa5 ]*?[：:]\s*$"
 stop_words = ['的', '是', '在', '我', '你',"否","有","无","\*+|[a-z][: ]|def|请|是否|有无|[\n\s\t\\t\\n]+|[、，。；\?]+","使用","的","选择",":",";"]
 
 # 备注3中的信息进行解析
-rule_2_parser = "(?P<first_layer>.*?)\.(?P<sec_layer>.*?)【(?P<re_model>.*?)】[:：](?P<info>.*)"
-rule_2_ls_parser = "[;；]"
+# rule_2_parser = "(?P<first_layer>.*?)\.(?P<sec_layer>.*?)【(?P<re_model>.*?)】[:：](?P<info>.*)"
+# rule_2_ls_parser = "[;；]"
+
