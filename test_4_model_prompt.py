@@ -33,6 +33,31 @@ model = AutoModel.from_pretrained(my_model_path, trust_remote_code=True).cuda()
 # inputs = {"text": prompt, "history": history}
 # result = pipe(inputs)
 
+# 有向无环图中各结点的入度，以及每个结点指向的所有结点
+def prepare_degs_and_tails(dependencies):
+    degs = dict()
+    tails = dict((k, []) for k in dependencies)
+    for k, v in dependencies.items():
+        degs[k] = len(v)
+        for item in v:
+            tails[item].append(k)
+    return degs, tails
+# 拓扑排序
+def toposort(degs, tails):
+    res = []
+    q = set()
+    for term, in_deg in degs.items():
+        if in_deg == 0:
+            q.add(term)
+    while len(q) > 0:
+        front = q.pop()
+        res.append(front)
+        for term in tails[front]:
+            degs[term] -= 1
+            if degs[term] == 0:
+                q.add(term)
+    return res
+
 def get_result_4_re(rule_info, context_4_stem_vid):
     # 基于正则的方式获取结果
     res_dict = {}
@@ -61,11 +86,11 @@ def get_result_4_model(file_re_info, sec_index_re,stem_cn_name,rule_info,context
     rule_info = rule_info.replace("\\n", "\n")
     prompt = f"你将阅读一段来自{file_re_info}的病历文本，并根据病历内容回答一个问题。\n病历文本：\n{context_4_stem_vid}\n根据病历内容，请问{rule_info}"
     r, h = model.chat(tokenizer, prompt, history=[], do_sample=False)
-    print("*"*100)
-    print(prompt)
-    print()
-    print(r)
-    print("*"*100)
+    # print("*"*100)
+    # print(prompt)
+    # print()
+    # print(r)
+    # print("*"*100)
     result = parse_model_answer(r, stem_cn_name)
     return result
 def parse_model_answer(response, term):
@@ -167,9 +192,14 @@ def get_all_stem_info():
     result_dict_path = os.path.join(prepro_orig_data_dir_path, "result_dict.json")
     with open(result_dict_path,"r",encoding="utf-8") as f:
         stem_info_dict = json.load(f)
+    # 有向无环图
+    degs, tails = prepare_degs_and_tails(term_dependencies)
+    # 拓扑排序
+    term_seq = toposort(degs, tails)
+    assert len(term_seq) == len(stem_info_dict)
     new_stem_info_dict = {}
-    for stem_name,stem_info in stem_info_dict.items():
-        new_stem_info_dict[stem_name] = stem_info
+    for stem_name in term_seq:
+        new_stem_info_dict[stem_name] = stem_info_dict[stem_name]
     return new_stem_info_dict
 def get_check_vids_info():
     # 读取就诊列表中的就诊id信息，并核对和解析的数据中vid是否相同
@@ -192,6 +222,8 @@ def main():
     new_stem_info_dict = get_all_stem_info()
     # 2. 读取就诊流水号信息
     all_vids = get_check_vids_info()
+    # 对于每个数据项，各个就诊流水号对应的预测答案
+    vid_2_stem_answer = dict((vid, {}) for vid in all_vids)
     # 3. 生产每个就诊的每个stem问题结果
     for vid in all_vids:
         vid_file_path = os.path.join(prepro_data_dir_path,vid)
@@ -206,6 +238,17 @@ def main():
             stem_select_info = stem_info["选项列表"]
             stem_rule_info = stem_info["规则信息"]
             stem_results = []
+
+            # 对于某些数据项，可以根据其依赖的数据项的预测值直接得到答案（例如STEMI-3-2-1为y则STEMI-3-2-2为n）
+            if stem_name in infer_answer_via_dependency:
+                for depen_stem, depen_ans_mapping in infer_answer_via_dependency[stem_name].items():
+                    assert depen_stem in vid_2_stem_answer[vid]
+                    depen_stem_answer = vid_2_stem_answer[vid][depen_stem]
+                    if depen_stem_answer in depen_ans_mapping:
+                        inferred_stem_res = depen_ans_mapping[depen_stem_answer]
+                        # print(f"inferred_stem_res: {inferred_stem_res}")
+                        stem_results.append({"规则": inferred_stem_res})
+                    
             # 3.3 通过stem信息获得结果
             for stem_info in stem_rule_info:
                 if isinstance(stem_info,dict):
@@ -223,19 +266,20 @@ def main():
                     elif parser_fun == "模型":
                         stem_res_4_model = get_result_4_model(file_re_info, sec_index_re,stem_cn_name,rule_info, context_4_stem_vid)
                         stem_results.append({"模型":stem_res_4_model})
-                        print(f"模型预测答案为{stem_res_4_model}\n")
+                        # print(f"模型预测答案为{stem_res_4_model}\n")
                     else:
                         raise print(f"{stem_name}\t{stem_cn_name}\t的解析方式为{parser_fun},错误.")
                 else:
                     raise print(f"{vid}就诊中{stem_name}:{stem_cn_name}的stem_info应该解析为dict，但是实际为{stem_info}，错误！")
-                # 3.6 观察发现有多条结果的是”禁忌症“相关stem字段，答案只有y，n，合并答案
-                stem_res = combine_stem_res_4_rule_and_model(stem_results)
-                try:
-                    # 3.7 数据类型为字符串的答案结果应该只有一个，因此需要核对结果
-                    check_stem_res_and_type(stem_type,stem_res)
-                except:
-                    # raise \
-                    print(f"{vid}就诊中{stem_name}:{stem_cn_name}的数据类型为{stem_type}，规则为{stem_info}，预测答案为{stem_res},不符合要求。\n")
+            # 3.6 观察发现有多条结果的是”禁忌症“相关stem字段，答案只有y，n，合并答案
+            stem_res = combine_stem_res_4_rule_and_model(stem_results)
+            vid_2_stem_answer[vid][stem_name] = stem_res
+            try:
+                # 3.7 数据类型为字符串的答案结果应该只有一个，因此需要核对结果
+                check_stem_res_and_type(stem_type,stem_res)
+            except:
+                # raise \
+                print(f"{vid}就诊中{stem_name}:{stem_cn_name}的数据类型为{stem_type}，规则为\n{stem_rule_info}\n预测答案为{stem_res}，不符合要求。\n")
 
 if __name__ == '__main__':
     main()
