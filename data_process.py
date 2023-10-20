@@ -369,8 +369,7 @@ if __name__ == '__main__':
 
     data_process_4_ultrasonic_results("5-超声心动图结果.xlsx")
     data_process_4_other_results("6-其他检查结果.xlsx")
-
     main_4_simi_resource()
-    # main_4_get_fisrt_admit_time()
+    main_4_get_fisrt_admit_time()
 
 
