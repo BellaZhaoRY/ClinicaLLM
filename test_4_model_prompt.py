@@ -58,6 +58,30 @@ def toposort(degs, tails):
                 q.add(term)
     return res
 
+# 根据所依赖数据项的预测值判断是否需要填写当前数据项
+def check_whether_answer_via_dependency(term, dependent_terms, stem_2_answer):
+    flag_must_answer = False
+    flag_may_answer = False
+    flag_need_not_answer = False
+    for dependent_term in dependent_terms:
+        dependent_term_answer =  stem_2_answer[dependent_term]
+
+        if (term, dependent_term) in must_answer and dependent_term_answer == must_answer((term, dependent_term)):
+            flag_must_answer = True
+
+        if (term, dependent_term) in need_not_answer and dependent_term_answer == need_not_answer((term, dependent_term)):
+            flag_need_not_answer = True
+    return flag_must_answer, flag_may_answer, flag_need_not_answer
+# 根据有向无环图进行后处理
+def post_processing(vid_2_stem_answer):
+    for vid, stem_2_answer in vid_2_stem_answer.items():
+        for stem, ans in stem_2_answer.items():
+            # 该数据项所依赖的所有数据项
+            dependent_terms = term_dependencies[stem]
+            flag_must_ans, flag_may_ans, flag_need_not_ans = \
+                check_whether_answer_via_dependency(stem, dependent_terms, stem_2_answer)
+
+
 def get_result_4_re(rule_info, context_4_stem_vid):
     # 基于正则的方式获取结果
     res_dict = {}
@@ -248,7 +272,7 @@ def main():
                         inferred_stem_res = depen_ans_mapping[depen_stem_answer]
                         # print(f"inferred_stem_res: {inferred_stem_res}")
                         stem_results.append({"规则": inferred_stem_res})
-                    
+            
             # 3.3 通过stem信息获得结果
             for stem_info in stem_rule_info:
                 if isinstance(stem_info,dict):
@@ -266,7 +290,7 @@ def main():
                     elif parser_fun == "模型":
                         stem_res_4_model = get_result_4_model(file_re_info, sec_index_re,stem_cn_name,rule_info, context_4_stem_vid)
                         stem_results.append({"模型":stem_res_4_model})
-                        # print(f"模型预测答案为{stem_res_4_model}\n")
+                        print(f"模型预测答案为{stem_res_4_model}\n")
                     else:
                         raise print(f"{stem_name}\t{stem_cn_name}\t的解析方式为{parser_fun},错误.")
                 else:
@@ -280,6 +304,17 @@ def main():
             except:
                 # raise \
                 print(f"{vid}就诊中{stem_name}:{stem_cn_name}的数据类型为{stem_type}，规则为\n{stem_rule_info}\n预测答案为{stem_res}，不符合要求。\n")
+
+    # 3.8 根据有向无环图进行后处理
+    vid_2_stem_answer = post_processing(vid_2_stem_answer)
+    # 3.9 保存excel格式的模型预测结果
+    save_pred_path = os.path.join(results_dir_path, "预测结果.xlsx")
+    save_pred_as_excel(vid_2_stem_answer, save_pred_path)
+
+    # 4. 将模型预测结果和标注结果对比
+    gold_annotaion_path = "data/orig_datas/8-填报结果.xlsx"
+    if os.path.exists(gold_annotaion_path):
+        compare_results(vid_2_stem_answer, gold_annotaion_path)
 
 if __name__ == '__main__':
     main()
