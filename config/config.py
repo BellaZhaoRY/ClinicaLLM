@@ -9,6 +9,7 @@ program_dir_path = os.path.join(config_dir_path, os.path.pardir)
 data_dir_path = os.path.join(program_dir_path, 'data')
 orig_data_dir_path = os.path.join(data_dir_path, 'orig_datas')
 clinical_data_dir_path = os.path.join(orig_data_dir_path, '4-病历文书')
+stem_file = "STEMI数据项说明_备注说明_补充信息_v2.xlsx"
 prepro_data_dir_path = os.path.join(data_dir_path, 'prepro_data')
 prepro_orig_data_dir_path = os.path.join(data_dir_path, 'prepro_orig_datas')
 results_dir_path = os.path.join(program_dir_path, 'results')
@@ -34,5 +35,131 @@ sc_table_dict_re = {"admit_note":"^\S\s\S\s\S\s\S|^[\u4e00-\u9fa5 ]*?[：:]\s*$"
 stop_words = ['的', '是', '在', '我', '你',"否","有","无","\*+|[a-z][: ]|def|请|是否|有无|[\n\s\t\\t\\n]+|[、，。；\?]+","使用","的","选择",":",";"]
 
 # 备注3中的信息进行解析
-rule_2_parser = "(?P<first_layer>.*?)\.(?P<sec_layer>.*?)【(?P<re_model>.*?)】[:：](?P<info>.*)"
-rule_2_ls_parser = "[;；]"
+# rule_2_parser = "(?P<first_layer>.*?)\.(?P<sec_layer>.*?)【(?P<re_model>.*?)】[:：](?P<info>.*)"
+# rule_2_ls_parser = "[;；]"
+
+# 各数据项所依赖的数据项
+term_dependencies = {
+    "STEMI-1-1-7": [],
+    "STEMI-1-1-1": [],
+    "STEMI-1-2-1": [],
+    "STEMI-2-1-1": [],
+    "STEMI-2-1-3": ["STEMI-2-1-1"],
+    "STEMI-2-2-1": [],
+    "STEMI-2-2-3-4": ["STEMI-2-2-1"],
+    "STEMI-2-2-3-5": ["STEMI-2-2-1"],
+    "STEMI-3-1-3": [],
+    "STEMI-3-2-1": [],
+    "STEMI-3-2-2": ["STEMI-3-2-1"],
+    "STEMI-3-2-3-1": ["STEMI-3-2-1", "STEMI-3-2-2"],
+    "STEMI-3-2-3-2-1": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-2-5": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-2-2": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-2-6": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-2-3": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-2-7": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-2-4": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-2-8": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-3-2": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-3-4": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-3-6": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-3-8": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-3-3-12": ["STEMI-3-2-3-1"],
+    "STEMI-3-2-7-1": ["STEMI-3-2-1"],
+    "STEMI-3-2-7-2": ["STEMI-3-2-7-1"],
+    "STEMI-4-1-1": [],
+    "STEMI-4-2": ["STEMI-4-1-1"],
+    "STEMI-5-1-1": [],
+    "STEMI-5-1-2": ["STEMI-5-1-1"],
+    "STEMI-5-2-1": ["STEMI-4-1-1"],
+    "STEMI-5-2-2": ["STEMI-5-2-1"],
+    "STEMI-5-3-1": [],
+    "STEMI-5-3-3": ["STEMI-5-3-1"],
+    "STEMI-5-3-4-A": ["STEMI-5-3-3"],
+    "STEMI-5-3-4-B": ["STEMI-5-3-3"],
+    "STEMI-5-4-1": [],
+    "STEMI-5-4-3": ["STEMI-5-4-1"],
+    "STEMI-5-4-4": ["STEMI-5-4-3"],
+    "STEMI-6-1": [],
+    "STEMI-6-1-2": ["STEMI-6-1"],
+    "STEMI-6-2": ["STEMI-4-1-1"],
+    "STEMI-6-2-2": ["STEMI-6-2"],
+    "STEMI-6-3": ["STEMI-5-3-1"],
+    "STEMI-6-3-2": ["STEMI-5-3-1", "STEMI-6-3"],
+    "STEMI-6-3-2-A": ["STEMI-5-3-1", "STEMI-6-3-2"],
+    "STEMI-6-3-2-B": ["STEMI-5-3-1", "STEMI-6-3-2"],
+}
+
+# 取值等于对应值时必填
+must_answer = {
+    ("STEMI-2-1-3", "STEMI-2-1-1"): "y",
+    ("STEMI-2-2-3-4", "STEMI-2-2-1"): "y",
+    ("STEMI-2-2-3-5", "STEMI-2-2-1"): "y",
+    ("STEMI-3-2-2", "STEMI-3-2-1"): "y",
+    ("STEMI-3-2-3-1", "STEMI-3-2-1"): "y",
+    ("STEMI-3-2-3-1", "STEMI-3-2-2"): "n",
+    ("STEMI-3-2-3-2-1","STEMI-3-2-3-1"): "a",
+    ("STEMI-3-2-3-2-5","STEMI-3-2-3-1"): "a",
+    ("STEMI-3-2-3-2-2","STEMI-3-2-3-1"): "b",
+    ("STEMI-3-2-3-2-6","STEMI-3-2-3-1"): "b",
+    ("STEMI-3-2-3-2-3","STEMI-3-2-3-1"): "c",
+    ("STEMI-3-2-3-2-7","STEMI-3-2-3-1"): "c",
+    ("STEMI-3-2-3-2-4","STEMI-3-2-3-1"): "d",
+    ("STEMI-3-2-3-2-8","STEMI-3-2-3-1"): "d",
+    ("STEMI-3-2-7-1", "STEMI-3-2-1"): "y",
+    ("STEMI-3-2-7-2", "STEMI-3-2-7-1"): "y",
+    ("STEMI-4-2", "STEMI-4-1-1"): "n",
+    ("STEMI-5-1-2", "STEMI-5-1-1"): "y",
+    ("STEMI-5-2-1", "STEMI-4-1-1"): "n",
+    ("STEMI-5-2-2", "STEMI-5-2-1"): "y",
+    ("STEMI-5-3-3", "STEMI-5-3-1"): "n",
+    ("STEMI-5-3-4-A", "STEMI-5-3-3"): "y",
+    ("STEMI-5-3-4-B", "STEMI-5-3-3"): "y",
+    ("STEMI-5-4-3", "STEMI-5-4-1"): "n",
+    ("STEMI-5-4-4", "STEMI-5-4-3"): "y",
+    ("STEMI-6-1-2", "STEMI-6-1"): "y",
+    ("STEMI-6-2", "STEMI-4-1-1"): "n",
+    ("STEMI-6-2-2", "STEMI-6-2"): "y",
+    ("STEMI-6-3-2", "STEMI-6-3"): "y",
+    ("STEMI-6-3-2-A", "STEMI-6-3-2"): "a",
+    ("STEMI-6-3-2-B", "STEMI-6-3-2"): "b",
+}
+# 取值等于对应值时可填写
+may_answer={
+    ("STEMI-3-2-7-1","STEMI-3-2-1"): "y",
+}
+# 取值等于对应值时无需填写
+need_not_answer = {
+    ("STEMI-3-2-3-2-1","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-2-5","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-2-2","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-2-6","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-2-3","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-2-7","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-2-4","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-2-8","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-3-2","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-3-4","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-3-6","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-3-8","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-3-12","STEMI-3-2-3-1"): "UTD",
+    ("STEMI-6-3", "STEMI-5-3-1"): "y",
+    ("STEMI-6-3-2", "STEMI-5-3-1"): "y",
+    ("STEMI-6-3-2-A", "STEMI-5-3-1"): "y",
+    ("STEMI-6-3-2-A", "STEMI-5-3-1"): "y",
+    ("STEMI-6-3-2-B", "STEMI-5-3-1"): "y",
+    ("STEMI-3-2-3-3-2", "STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-3-4", "STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-3-6", "STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-3-8", "STEMI-3-2-3-1"): "UTD",
+    ("STEMI-3-2-3-3-12", "STEMI-3-2-3-1"): "UTD",
+}
+
+
+infer_answer_via_dependency = {
+    "STEMI-3-2-2": {
+        "STEMI-3-2-1": {
+            "y": "n",
+        }
+    }
+}

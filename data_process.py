@@ -57,7 +57,7 @@ def main():
     name_ch_ls = []  # 查找所有数据中 表的类型——》用于转为英文，方便更新config中的doctype
 
     for _, _, files in os.walk(clinical_data_dir_path):
-        print(files)
+        # print(files)
         for fil in files:
             name_ch_ls.append(fil.split("_")[1])
     name_ch_ls = list(set(name_ch_ls))
@@ -74,7 +74,7 @@ def main():
                 text = f.read()
                 # 4. 将每个文档的分段保存在本地
                 mkdir_if_not_exist([prepro_data_dir_path, vid])
-                save_path = os.path.join(prepro_data_dir_path, vid, table_name_cn + ".json")
+                save_path = os.path.join(prepro_data_dir_path, vid, table_name_cn + tid_num + ".json")
                 sc_text_dict = save_text_to_file(table_name_en, text, save_path)
                 # print(f"已分层text并保存{file}到本地")
         else:
@@ -130,14 +130,63 @@ def data_process_4_physician_order():
         with open(os.path.join(prepro_data_dir_path, str(vid), "医嘱.json"), "w", encoding="utf-8") as f:
             json.dump(all_info_4_vid, f, ensure_ascii=False, indent=4)
 
+def data_process_4_other_results(file_name):
+    file_path = os.path.join(orig_data_dir_path, file_name)
+    other_results = pd.read_excel(file_path)
+    print(f"{file_path},{os.path.exists(file_path)}")
+    num_lines = len(other_results)
+    vid_2_content = dict()
+    for i in range(num_lines):
+        data_dict = dict(other_results.loc[i])
+        check_item = data_dict['检查项目']
+        check_observation = data_dict['检查所见']
+        check_conclusion = data_dict['检查结论']
+        content = '检查项目：' + check_item + '\t检查所见：' + check_observation + '\t检查结论：' + check_conclusion + '\n'
+
+        vid = str(data_dict['就诊流水号'])
+        if vid not in vid_2_content:
+            vid_2_content[vid] = ""
+        vid_2_content[vid] += content
+
+    for vid, content in vid_2_content.items():
+        if content == "":
+            content = "未进行胸片检查或其他检查。\n"
+
+        with open(os.path.join(prepro_data_dir_path, str(vid), "其他检查结果.json"), "w", encoding="utf-8") as f:
+            json.dump({"": content}, f, ensure_ascii=False, indent=4)
+
+def data_process_4_ultrasonic_results(file_name):
+    file_path = os.path.join(orig_data_dir_path, file_name)
+    ultrasonic_results = pd.read_excel(file_path)
+    print(f"{file_path},{os.path.exists(file_path)}")
+    num_lines = len(ultrasonic_results)
+    vid_2_content = dict()
+    for i in range(num_lines):
+        data_dict = dict(ultrasonic_results.loc[i])
+        check_observation = data_dict['检查所见']
+        if "检查结论" in data_dict:
+            check_conclusion = data_dict['检查结论']
+        elif "检查结论（超声大夫给出的诊断结论，不是临床诊断结果）" in data_dict:
+            check_conclusion = data_dict['检查结论（超声大夫给出的诊断结论，不是临床诊断结果）']
+        content = '超声心电图检查所见：\n' + check_observation + '\n检查结论：\n' + check_conclusion + '\n\n'
+
+        vid = str(data_dict['就诊流水号'])
+        if vid not in vid_2_content:
+            vid_2_content[vid] = ""
+        vid_2_content[vid] += content
+
+    for vid, content in vid_2_content.items():
+        with open(os.path.join(prepro_data_dir_path, str(vid), "超声心电图结果.json"), "w", encoding="utf-8") as f:
+            json.dump({"": content}, f, ensure_ascii=False, indent=4)
 
 def data_process_4_xlsx(file_name):
     # 将 医嘱.xlsx文件 根据一级索引的方式 保存在本地vid.json:{医嘱优先级_医嘱类型：str结果拼接}
-    config_info = {"医嘱": {"index_col": ["医嘱优先级", "医嘱类型"], "res_col": ["医嘱名称", "医嘱状态"]},
+    config_info = {"医嘱": {"index_col": ["医嘱优先级", "医嘱类型","医嘱开始时间","下医嘱时间"], "res_col": ["医嘱名称", "医嘱状态"]},
                    "其他检查结果": {"index_col": ["检查项目", "项目类别"], "res_col": ["检查所见", "检查结论"]},
                    "超声心动图结果": {"index_col": [],
                                       "res_col": ["检查所见", "检查结论（超声大夫给出的诊断结论，不是临床诊断结果）"]}}
     order_path = os.path.join(orig_data_dir_path, file_name)
+
     for re_ker, info in config_info.items():
         if re.search(re_ker, order_path):
             # print(order_path)
@@ -147,6 +196,12 @@ def data_process_4_xlsx(file_name):
     res_col = info.get("res_col")
     print(f"{order_path},{os.path.exists(order_path)}")
     dfs = pd.read_excel(order_path, index_col="就诊流水号")[index_col + res_col].fillna("")
+    # 针对时间的index ，修改值到年月日
+    time_col = [x for x in index_col if re.search("时间",x)]
+    if time_col:
+        dfs[time_col[0]] = dfs[time_col[0]].map(lambda x:str(x)[:8] if x else "99999999")
+        dfs[time_col[-1]] = dfs[time_col[-1]].map(lambda x:str(x)[:8] if x else "99999999")
+
     dfs_groups = dfs.groupby(dfs.index).apply(lambda x: x.to_dict(orient="records"))
     for vid in dfs_groups.index:
         mkdir_if_not_exist([prepro_data_dir_path, str(vid)])
@@ -181,23 +236,32 @@ def parser_stem_rule(rule):
     """解析每条stem数据项的规则"""
     # rule_4_pars = re.split(rule_2_ls_parser,rule)
     # rule_4_pars = [re.sub("\s","",x) for x in rule_4_pars if not re.search(rule_2_ls_parser,x) or x]
-    rule_2_parser = "(?P<first_layer>.*?)\.(?P<sec_layer>.*?)【(?P<pars_fun>.*?)】[:：](?P<rule_info>.*)"
+    # 先获取行筛选正则条件
+    kernals = ""
+    kernals_res = re.search("\[(.*?)\]【",rule)
+    if kernals_res:
+        kernals += kernals_res.groups()[0]
+        rule = re.sub("\[.*?\](?=【)","",rule)
+    rule_2_parser = "(?P<first_layer>[\s\S]*?)\.(?P<sec_layer>[\s\S]*?)【(?P<pars_fun>[\s\S]*?)】[:：](?P<rule_info>[\s\S]*)"
     rule_ls = []
-    # for rl in rule_4_pars:
     try:
         res = re.findall(rule_2_parser,rule)
         # raise len(res) == 1
-        fst_layer, sec_layer, pars_fun, rule_info = res[0]
+        if res:
+            fst_layer, sec_layer, pars_fun, rule_info = res[0]
+            return {"文件名": fst_layer, "表索引": sec_layer, "行筛选条件": kernals, "解析方式": pars_fun,
+                    "规则": rule_info}
+        else:
+            print("医学规则没有识别出来", "rule=", rule, "res==", res)
+            return {}
     except Exception as e:
         # print(e, "\n==",rl,"\n====",res)
-        return rule
-    assert len(res) == 1
-    rule_ls.append({"文件名":fst_layer,"表索引":sec_layer,"解析方式":pars_fun,"规则":rule_info})
-    # return rule_ls
-    return {"文件名":fst_layer,"表索引":sec_layer,"解析方式":pars_fun,"规则":rule_info}
+        # return rule
+        raise print(e, "rule=",rule,"res==",res)
+    # rule_ls.append({"文件名":fst_layer,"表索引":sec_layer,"行筛选条件":kernals,"解析方式":pars_fun,"规则":rule_info})
 def main_4_simi_resource():
-    # 根据相似度和核心词查找每个字段的来源表和二级目录
-    stem_info_xlsx_path = os.path.join(orig_data_dir_path, "STEMI数据项说明_备注说明_补充信息.xlsx")
+    # 解析医学逻辑并保存
+    stem_info_xlsx_path = os.path.join(orig_data_dir_path, stem_file)
     columns_all = ["数据采集项", "数据类型", "备注", "备注3", "选项列表"]
     dfs = pd.read_excel(stem_info_xlsx_path, sheet_name="精简后", index_col="字段名称")[columns_all].fillna("")
     # print(dfs.head())
@@ -210,11 +274,12 @@ def main_4_simi_resource():
     for row_index in row_indices:
         row_dict = dfs.loc[row_index].to_dict()
         source_table_ls = set()
-        for key,value in row_dict.items():
+        for key,value in list(row_dict.items()):
             if key.strip() =="备注3":
-                values = re.split("[；;\n]",value)
-                values = [re.sub("[;；\n]","",x.strip()) for x in values if x]
-                parser_values = [parser_stem_rule(rule) for rule in values]
+                values = re.split("[；;]",value)
+                values = [re.sub("[;；]","",x.strip()) for x in values if x]
+                parser_values = [parser_stem_rule(rule) for rule in values if rule]
+                parser_values =[x for x in parser_values if x]
                 row_dict["规则信息"] = parser_values
                 del row_dict["备注3"]
         result_dict[row_index] = row_dict
@@ -254,6 +319,7 @@ def main_4_simi_resource():
         stem_table_info = dict([(key, list(value)) for key, value in stem_table_info.items()])
         stem_sim_all_info[row_index] = stem_table_info
 
+    os.makedirs(prepro_orig_data_dir_path, exist_ok=True)
     stem_info_dict_path = os.path.join(prepro_orig_data_dir_path, "stem_info_dict.json")
     with open(stem_info_dict_path, "w", encoding="utf8") as f:
         json.dump(stem_sim_all_info, f, ensure_ascii=False, indent=4)
@@ -263,18 +329,47 @@ def main_4_simi_resource():
     pd.DataFrame.from_dict(result_dict, orient="index").to_excel(result_dict_path.replace(".json", ".xlsx"), index=True)
     with open(result_dict_path, "w", encoding="utf8") as f:
         json.dump(result_dict, f, ensure_ascii=False, indent=4)
+    print(f"每个数据采集项的规则已解析，并保存在文件{result_dict_path}中！")
 
-
+def main_4_get_fisrt_admit_time():
+    # 根据就诊目录下转为二级标题的json数据，获得首次如愿时间
+    vids = os.listdir(prepro_data_dir_path)
+    fisrt_admit_time,operation_time = "",[]
+    for vid in vids:
+        for file in os.listdir(os.path.join(prepro_data_dir_path,vid)):
+            # 1. 入院记录中的入院时间
+            if re.search("入院记录",file):
+                with open( os.path.join(prepro_data_dir_path,vid,file), "r",encoding="utf-8") as f:
+                    file_json = json.load(f)
+                    for key,value in file_json.items():
+                        if re.search("入院记录",key):
+                            res = re.search("入院时间[:：\s\\t]*(\d{4})年(\d{2})月(\d{2})日","".join(value))
+                            if res:
+                                fisrt_admit_time = "".join(list(res.groups()))
+            # 2. 医嘱中的首次时间
+            if not fisrt_admit_time:
+                if re.search("医嘱",file):
+                    with open(os.path.join(prepro_data_dir_path, vid, file), "r", encoding="utf-8") as f:
+                        file_json = json.load(f)
+                        process_time = sorted([int(x.split("_")[-2]) for x in list(file_json.keys())])
+                        fisrt_admit_time = str(process_time[0])
+                        operation_time =[x.split("_")[-2:] for x in list(file_json.keys()) if re.search("手术",x)]
+            if fisrt_admit_time:
+                with open(os.path.join(prepro_data_dir_path,vid,"补充信息.json"),"w",encoding="utf-8") as f:
+                    json.dump({"首次入院时间":fisrt_admit_time,"围术期":operation_time},f,ensure_ascii=False,indent=4)
+    print("每个就诊的首次入院时间信息已补充！")
 if __name__ == '__main__':
     sc_dir_name_all = []
-    # main()
+    main()
     # sc_dir_name_all = list(set(sc_dir_name_all))
     # print(f"sc_dir_name_all:{len(sc_dir_name_all)}:{sc_dir_name_all}")
 
     # 以下将xlsx文档数据转为两级结构数据json中
-    # data_process_4_xlsx("5-超声心动图结果.xlsx")
-    # data_process_4_xlsx("6-其他检查结果.xlsx")
-    # data_process_4_xlsx("7-医嘱.xlsx")
+    data_process_4_xlsx("7-医嘱.xlsx")
+
+    data_process_4_ultrasonic_results("5-超声心动图结果.xlsx")
+    data_process_4_other_results("6-其他检查结果.xlsx")
     main_4_simi_resource()
+    main_4_get_fisrt_admit_time()
 
 
