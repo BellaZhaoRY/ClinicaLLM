@@ -2,7 +2,6 @@ import os.path
 import re
 
 # 1. 文件
-
 config_dir_path = os.path.abspath(os.path.dirname(__file__))
 program_dir_path = os.path.join(config_dir_path, os.path.pardir)
 # 以下是data目录
@@ -15,7 +14,6 @@ prepro_orig_data_dir_path = os.path.join(data_dir_path, 'prepro_orig_datas')
 results_dir_path = os.path.join(program_dir_path, 'results')
 # 以下是model目录
 model_dir_path = os.path.join(program_dir_path,"model")
-
 
 # 2. doctype
 doc_type_dict={"入院记录":"admit_note",
@@ -148,6 +146,7 @@ need_not_answer = {
     ("STEMI-6-3-2-A", "STEMI-5-3-1"): "y",
     ("STEMI-6-3-2-B", "STEMI-5-3-1"): "y",
 }
+
 
 infer_answer_via_dependency = {
     "STEMI-3-2-2": {
