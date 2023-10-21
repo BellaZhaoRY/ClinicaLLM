@@ -4,6 +4,7 @@ import json
 
 import os
 from config.config import *
+from test_4_model_prompt import get_all_stem_info, get_check_vids_info, get_cli_info_4_vid, get_context_info_4_vid_4_stem
 import pandas as pd
 
 def get_gold_ans(gold_annotaion_path):
@@ -76,79 +77,6 @@ def get_sample_4_sft(file_re_info, rule_info, context_4_stem_vid, gold_ans):
     }
     return sample
 
-def get_precondition_2_secect_line(stem_cn_name,condition_info):
-    """
-
-    :param stem_cn_name:
-    :param condition_info:
-    :return:
-    """
-    if re.search("首",stem_cn_name):
-        return condition_info.get("首次入院时间","")
-    elif re.search("围术期",stem_cn_name):
-        terms = condition_info.get("围术期",[])
-        return terms
-        # for term in terms:
-        #     for start_time,end_time in term:
-        #         start_time = int(start_time) -1
-        #         end_time = int(end_time) +1
-        #         return
-    else:
-        return ""
-def is_filter_4_sec_index(precondition_re,sec_index):
-    if isinstance(precondition_re, str):
-        if re.search(precondition_re, sec_index):
-            return False
-    else:
-        for pre_re in precondition_re:
-            for start_time, end_time in pre_re:
-                if start_time <= int(sec_index[-2]) <= end_time:
-                    return False
-    return True
-def get_context_info_4_vid_4_stem(file_re_info,sec_index_re,cli_info_4_vid,line_re,stem_cn_name):
-    # stem_cn_name: 如果是“首”相关，则医嘱规则增加 首次入院时间和sec_index中医嘱开始相同相同；
-    #                 如果是“围术期”,则医嘱规则增加 医嘱开始和结束时间限制下 sec_index筛选条件
-    context = ""
-    # 获取前置条件
-    precondition_re = get_precondition_2_secect_line(stem_cn_name,cli_info_4_vid.get("补充信息",{}))
-    for file_name, cli_info in cli_info_4_vid.items():
-        if re.search(file_re_info, file_name):
-            for sec_index, sec_info in cli_info.items():
-                if precondition_re:
-                    if is_filter_4_sec_index(precondition_re, sec_index):
-                       continue
-                sec_index = re.sub("_\d{4,}","",sec_index)  # 删除掉时间信息
-                if re.search(sec_index_re, sec_index):
-                    # 通过line_re行筛选依据，过滤无用信息
-                    if isinstance(sec_info,list):
-                        line_str = "\n".join([x for x in sec_info if re.search(line_re,x)])
-                    else:
-                        line_str = sec_info if re.search(line_re,sec_info) else ""
-                    context += line_str + '\n'
-    return context
-def get_all_stem_info():
-    result_dict_path = os.path.join(prepro_orig_data_dir_path, "result_dict.json")
-    with open(result_dict_path,"r",encoding="utf-8") as f:
-        stem_info_dict = json.load(f)
-    return stem_info_dict
-def get_check_vids_info():
-    # 读取就诊列表中的就诊id信息，并核对和解析的数据中vid是否相同
-    with open(os.path.join(orig_data_dir_path,"3-就诊流水号列表.txt"),"r",encoding="utf-8") as f:
-        all_vids = f.readlines()
-    all_vids = [x.strip() for x in all_vids if x]
-    prepro_vids = os.listdir(prepro_data_dir_path)
-    assert len(all_vids) == len(prepro_vids)
-    return all_vids
-def get_cli_info_4_vid(vid_file_path,files_4_vid):
-    # 读取该就诊下的所有病历信息
-    cli_info_4_vid = {}
-    for file_4_cli_info in files_4_vid:
-        with open(os.path.join(vid_file_path, file_4_cli_info), "r", encoding="utf-8") as f:
-            cli_info = json.load(f)
-        cli_info_4_vid[file_4_cli_info[:-5]] = cli_info
-    return cli_info_4_vid
-
-
 def main():
     # 1. 读取stem的配置信息
     stem_info_dict = get_all_stem_info()
@@ -204,4 +132,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
