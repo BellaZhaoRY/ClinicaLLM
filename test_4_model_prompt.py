@@ -95,7 +95,6 @@ def post_processing(vid_2_stem_answer):
                 new_vid_2_stem_answer[vid][stem] = None
     return new_vid_2_stem_answer
 
-
 def get_result_4_re(rule_info, context_4_stem_vid):
     # 基于正则的方式获取结果
     res_dict = {}
@@ -255,6 +254,26 @@ def get_cli_info_4_vid(vid_file_path,files_4_vid):
             cli_info = json.load(f)
         cli_info_4_vid[file_4_cli_info[:-5]] = cli_info
     return cli_info_4_vid
+
+def covert_dict_2_pd(vid_2_stem_answer):
+    new_res = []
+    for vid,stem_info in vid_2_stem_answer.items():
+        for name,res in stem_info.items():
+            new_res.append({"就诊流水号":vid,	"填报数据项编码":name,	"选项或数据值":res})
+    return  new_res
+
+def compare_results(vid_2_stem_answer, gold_annotaion_path):
+    pdsx = pd.DataFrame.from_records(vid_2_stem_answer, index=["就诊流水号", "填报数据项编码"],
+                                     columns=["就诊流水号", "填报数据项编码", "选项或数据值"])
+    pdsy = pd.read_excel(gold_annotaion_path,index=["就诊流水号", "填报数据项编码"],
+                                     columns=["就诊流水号", "填报数据项编码", "选项或数据值"])
+    joined_df = pdsx.join(pdsy, lsuffix='_df1', rsuffix='_df2', how='outer')
+    joined_df["结果是否相同"] = joined_df["选项或数据值_df1"] == joined_df["选项或数据值_df2"]
+    joined_df["结果是否相同"] = joined_df["结果是否相同"].map({True: 1, False: None})
+    os.makedirs(results_dir_path,exist_ok=True)
+    joined_df.to_excel(os.path.join(results_dir_path,"结果对比.xlsx"))
+
+
 def main():
     # 1. 读取stem的配置信息
     new_stem_info_dict = get_all_stem_info()
@@ -304,7 +323,7 @@ def main():
                     elif parser_fun == "模型":
                         stem_res_4_model = get_result_4_model(file_re_info, sec_index_re,stem_cn_name,rule_info, context_4_stem_vid)
                         stem_results.append({"模型":stem_res_4_model})
-                        # print(f"模型预测答案为{stem_res_4_model}\n")
+                        print(f"模型预测答案为{stem_res_4_model}\n")
                     else:
                         raise print(f"{stem_name}\t{stem_cn_name}\t的解析方式为{parser_fun},错误.")
                 else:
@@ -317,18 +336,21 @@ def main():
                 check_stem_res_and_type(stem_type,stem_res)
             except:
                 # raise \
-                print(f"{vid}就诊中{stem_name}:{stem_cn_name}的数据类型为{stem_type}，规则为\n{stem_rule_info}\n预测答案为{stem_results}，不符合要求。\n")
+                print(f"{vid}就诊中{stem_name}:{stem_cn_name}的数据类型为{stem_type}，规则为\n{stem_rule_info}\n预测答案为{stem_res}，不符合要求。\n")
 
     # 3.8 根据有向无环图进行后处理
     vid_2_stem_answer = post_processing(vid_2_stem_answer)
+
     # 3.9 保存excel格式的模型预测结果
-    save_pred_path = os.path.join(results_dir_path, "预测结果.xlsx")
-    save_pred_as_excel(vid_2_stem_answer, save_pred_path)
+    vid_2_stem_answer_4_pd = covert_dict_2_pd(vid_2_stem_answer)
+    pd.DataFrame(vid_2_stem_answer_4_pd).to_excel(os.path.join(results_dir_path, "预测结果.xlsx"),)
+
 
     # 4. 将模型预测结果和标注结果对比
     gold_annotaion_path = "data/orig_datas/8-填报结果.xlsx"
     if os.path.exists(gold_annotaion_path):
-        compare_results(vid_2_stem_answer, gold_annotaion_path)
+        compare_results(vid_2_stem_answer_4_pd, gold_annotaion_path)
+
 
 if __name__ == '__main__':
     main()
