@@ -5,6 +5,8 @@ import json
 import os
 from config.config import *
 import pandas as pd
+from copy import deepcopy
+
 from transformers import AutoTokenizer, AutoModel
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
@@ -59,28 +61,40 @@ def toposort(degs, tails):
     return res
 
 # 根据所依赖数据项的预测值判断是否需要填写当前数据项
-def check_whether_answer_via_dependency(term, dependent_terms, stem_2_answer):
-    flag_must_answer = False
-    flag_may_answer = False
-    flag_need_not_answer = False
+def check_whether_ans_via_dependency(term, dependent_terms, stem_2_answer):
+    flag_must_ans = False
+    flag_may_ans = True
+    flag_need_not_ans = False
     for dependent_term in dependent_terms:
-        dependent_term_answer =  stem_2_answer[dependent_term]
-
-        if (term, dependent_term) in must_answer and dependent_term_answer == must_answer((term, dependent_term)):
-            flag_must_answer = True
-
-        if (term, dependent_term) in need_not_answer and dependent_term_answer == need_not_answer((term, dependent_term)):
-            flag_need_not_answer = True
-    return flag_must_answer, flag_may_answer, flag_need_not_answer
+        depen_term_ans =  stem_2_answer[dependent_term]
+        if (term, dependent_term) in must_answer and depen_term_ans == must_answer[(term, dependent_term)]:
+            flag_must_ans = True
+        if (term, dependent_term) in may_answer and depen_term_ans != may_answer[(term, dependent_term)]:
+            flag_may_ans = False
+        if (term, dependent_term) in need_not_answer and depen_term_ans == need_not_answer[(term, dependent_term)]:
+            flag_need_not_ans = True
+    return flag_must_ans, flag_may_ans, flag_need_not_ans
 # 根据有向无环图进行后处理
 def post_processing(vid_2_stem_answer):
+    new_vid_2_stem_answer = deepcopy(vid_2_stem_answer)
     for vid, stem_2_answer in vid_2_stem_answer.items():
         for stem, ans in stem_2_answer.items():
             # 该数据项所依赖的所有数据项
-            dependent_terms = term_dependencies[stem]
-            flag_must_ans, flag_may_ans, flag_need_not_ans = \
-                check_whether_answer_via_dependency(stem, dependent_terms, stem_2_answer)
-
+            depen_terms = term_dependencies[stem]
+            must_ans, may_ans, need_not_ans = check_whether_ans_via_dependency(stem, depen_terms, stem_2_answer)
+            # 必须填写
+            if must_ans:
+                assert need_not_ans == False
+                if not ans:
+                    print(f"[{vid}][Conflict][Must answer]:"
+                          f"{stem}无预测值，与其依赖项的预测结果{[(x, stem_2_answer[x]) for x in depen_terms]}矛盾")
+            # 不需要填写
+            if not may_ans or need_not_ans:
+                if ans:
+                    print(f"[{vid}][Conflict][Need not answer]:"
+                          f"{stem}有预测值{ans}，与其依赖项的预测结果{[(x, stem_2_answer[x]) for x in depen_terms]}矛盾")
+                new_vid_2_stem_answer[vid][stem] = None
+    return new_vid_2_stem_answer
 
 def get_result_4_re(rule_info, context_4_stem_vid):
     # 基于正则的方式获取结果

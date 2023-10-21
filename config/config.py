@@ -104,7 +104,6 @@ must_answer = {
     ("STEMI-3-2-3-2-7","STEMI-3-2-3-1"): "c",
     ("STEMI-3-2-3-2-4","STEMI-3-2-3-1"): "d",
     ("STEMI-3-2-3-2-8","STEMI-3-2-3-1"): "d",
-    ("STEMI-3-2-7-1", "STEMI-3-2-1"): "y",
     ("STEMI-3-2-7-2", "STEMI-3-2-7-1"): "y",
     ("STEMI-4-2", "STEMI-4-1-1"): "n",
     ("STEMI-5-1-2", "STEMI-5-1-1"): "y",
@@ -146,11 +145,6 @@ need_not_answer = {
     ("STEMI-6-3-2-A", "STEMI-5-3-1"): "y",
     ("STEMI-6-3-2-A", "STEMI-5-3-1"): "y",
     ("STEMI-6-3-2-B", "STEMI-5-3-1"): "y",
-    ("STEMI-3-2-3-3-2", "STEMI-3-2-3-1"): "UTD",
-    ("STEMI-3-2-3-3-4", "STEMI-3-2-3-1"): "UTD",
-    ("STEMI-3-2-3-3-6", "STEMI-3-2-3-1"): "UTD",
-    ("STEMI-3-2-3-3-8", "STEMI-3-2-3-1"): "UTD",
-    ("STEMI-3-2-3-3-12", "STEMI-3-2-3-1"): "UTD",
 }
 
 
