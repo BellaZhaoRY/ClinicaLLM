@@ -353,10 +353,10 @@ def main_4_get_fisrt_admit_time():
                         file_json = json.load(f)
                         process_time = sorted([int(x.split("_")[-2]) for x in list(file_json.keys())])
                         fisrt_admit_time = str(process_time[0])
-                        operation_time =[x.split("_")[-2:] for x in list(file_json.keys()) if re.search("手术",x)]
-            if fisrt_admit_time:
-                with open(os.path.join(prepro_data_dir_path,vid,"补充信息.json"),"w",encoding="utf-8") as f:
-                    json.dump({"首次入院时间":fisrt_admit_time,"围术期":operation_time},f,ensure_ascii=False,indent=4)
+                        operation_time.extend([x.split("_")[-2:] for x in list(file_json.keys()) if re.search("手术",x)])
+        if fisrt_admit_time or operation_time:
+            with open(os.path.join(prepro_data_dir_path,vid,"补充信息.json"),"w",encoding="utf-8") as f:
+                json.dump({"首次入院时间":fisrt_admit_time,"围术期":operation_time},f,ensure_ascii=False,indent=4)
     print("每个就诊的首次入院时间信息已补充！")
 if __name__ == '__main__':
     sc_dir_name_all = []
@@ -365,11 +365,11 @@ if __name__ == '__main__':
     # print(f"sc_dir_name_all:{len(sc_dir_name_all)}:{sc_dir_name_all}")
 
     # 以下将xlsx文档数据转为两级结构数据json中
-    data_process_4_xlsx("7-医嘱.xlsx")
-
+    # data_process_4_xlsx("5-超声心动图结果.xlsx")
+    # data_process_4_xlsx("6-其他检查结果.xlsx")
+    # data_process_4_xlsx("7-医嘱.xlsx")
     data_process_4_ultrasonic_results("5-超声心动图结果.xlsx")
     data_process_4_other_results("6-其他检查结果.xlsx")
     main_4_simi_resource()
     main_4_get_fisrt_admit_time()
-
 
