@@ -159,15 +159,22 @@ def check_stem_res_and_type(stem_type, stem_res):
         raise print("数据采集项的数据类型既不是字符串也不是数组，不符合要求！")
 def combine_stem_res_4_rule_and_model(stem_results):
     # stem_results：[{规则：答案},{模型：答案}]
-    # 若既有规则又有模型，获取答案的依据是以规则为准==》若规则答案冲突，则以y为准 todo
+    # 若既有规则又有模型，获取答案的依据:
+    #   all没有冲突，以唯一答案为准；
+    #   all有冲突，以规则答案为准；若规则答案多个，则以y为准，；是以规则为准==》若规则答案冲突，则以y为准 todo
     all_res = list(set([ans for xdict in stem_results for rl,ans in xdict.items() if ans]))
     rule_res = list(set([ans for xdict in stem_results for rl,ans in xdict.items() if rl == "规则" and ans]))
     model_res = list(set([ans for xdict in stem_results for rl,ans in xdict.items() if rl == "模型" and ans]))
-
+    if not all_res:
+        return ""
     if len(all_res) == 1:
         return all_res[0]
     elif len(rule_res) == 1:
         return rule_res[0]
+    # else:
+    #     if
+    #     return "y"
+
     elif len(model_res) == 1:
         return model_res[0]
     else:
@@ -321,7 +328,7 @@ def main():
                         inferred_stem_res = depen_ans_mapping[depen_stem_answer]
                         # print(f"inferred_stem_res: {inferred_stem_res}")
                         stem_results.append({"规则": inferred_stem_res})
-            
+
             # 3.3 通过stem信息获得结果
             for stem_info in stem_rule_info:
                 if isinstance(stem_info,dict):
@@ -333,7 +340,9 @@ def main():
                     # 3.4 获取该就诊关于该stem的相关病历内容。
                     context_4_stem_vid = get_context_info_4_vid_4_stem(file_re_info, sec_index_re, cli_info_4_vid,line_re,stem_cn_name)
                     # 3.5 根据规则或模型，获取相应答案，并使答案符合比赛要求
-                    if parser_fun == "规则":
+                    if not context_4_stem_vid:
+                        stem_results.append({"规则":""})
+                    elif parser_fun == "规则":
                         stem_res_4_rule = get_result_4_re(rule_info,context_4_stem_vid)
                         stem_results.append({"规则":stem_res_4_rule})
                     elif parser_fun == "模型":
@@ -347,6 +356,7 @@ def main():
                     raise print(f"{vid}就诊中{stem_name}:{stem_cn_name}的stem_info应该解析为dict，但是实际为{stem_info}，错误！")
             # 3.6 观察发现有多条结果的是”禁忌症“相关stem字段，答案只有y，n，合并答案
             stem_res = combine_stem_res_4_rule_and_model(stem_results)
+            print(f'{vid}=>,{stem_name}({stem_cn_name})\n\t{stem_results}===>{stem_res}')
             vid_2_stem_answer[vid][stem_name] = stem_res
             try:
                 # 3.7 数据类型为字符串的答案结果应该只有一个，因此需要核对结果
@@ -361,12 +371,10 @@ def main():
     vid_2_stem_answer_4_pd = covert_dict_2_pd(vid_2_stem_answer)
     pd.DataFrame(vid_2_stem_answer_4_pd).to_excel(os.path.join(results_dir_path, "预测结果.xlsx"),)
 
-
     # 4. 将模型预测结果和标注结果对比
     gold_annotaion_path = "data/orig_datas/8-填报结果.xlsx"
     if os.path.exists(gold_annotaion_path):
         compare_results(vid_2_stem_answer, gold_annotaion_path)
-
 
 if __name__ == '__main__':
     main()
