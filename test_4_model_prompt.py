@@ -5,23 +5,35 @@ import json
 import os
 from config.config import *
 import pandas as pd
-import queue
 from copy import deepcopy
 from collections import defaultdict
-from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+from transformers import AutoTokenizer, AutoModel
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
+# my_model_path = "/home/ubuntu/hyx/LLaMA-Efficient-Tuning-main/HYX_ChatGLM2_"
+# tokenizer = AutoTokenizer.from_pretrained(my_model_path, trust_remote_code=True)
+# model = AutoModel.from_pretrained(my_model_path, trust_remote_code=True).cuda()
 
-def load_model_and_tokenizer(model_path):
-    if 'chatglm' in model_path.lower():
-        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        model = AutoModel.from_pretrained(model_path, trust_remote_code=True).cuda()
-    elif 'qwen' in model_path.lower():
-        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(model_path, device_map="auto", trust_remote_code=True, fp16=True).eval()
-    else:
-        raise ValueError(model_path)
-    return model, tokenizer
+# tokenizer = AutoTokenizer.from_pretrained("THUDM/ChatGLM2-6B", trust_remote_code=True)
+# model = AutoModel.from_pretrained("THUDM/ChatGLM2-6B", trust_remote_code=True,cache_dir=model_dir_path).cuda()
+# r, h = model.chat(tokenizer, query, history=h, do_sample=False)
+
+# from huggingface_hub import snapshot_download
+# snapshot_download(repo_id="THUDM/chatglm-6b", local_dir=model_dir_path+"/chatglm-6b/")
+
+# from modelscope.utils.constant import Tasks  
+# from modelscope import Model
+# from modelscope.pipelines import pipeline
+# DEVICE = "cuda"
+# DEVICE_ID = ""
+# CUDA_DEVICE = f"{DEVICE}:{DEVICE_ID}" if DEVICE_ID else DEVICE
+# model = Model.from_pretrained('ZhipuAI/chatglm2-6b', device_map='auto', revision='v1.0.12')
+# model = Model.from_pretrained('ZhipuAI/chatglm2-6b', revision='v1.0.7',max_length=31*1024,do_sample=False,device_map='auto')
+# model = Model.from_pretrained('ZhipuAI/chatglm2-6b', device_map=CUDA_DEVICE, revision='v1.0.7',max_length=31*1024,do_sample=False)
+
+# pipe = pipeline(task=Tasks.chat, model=model,topk=0.000000001,temperature=0.000000001)
+# inputs = {"text": prompt, "history": history}
+# result = pipe(inputs)
 
 # 有向无环图中各结点的入度，以及每个结点指向的所有结点
 def prepare_degs_and_tails(dependencies):
@@ -35,17 +47,17 @@ def prepare_degs_and_tails(dependencies):
 # 拓扑排序
 def toposort(degs, tails):
     res = []
-    q = queue.Queue()
+    q = set()
     for term, in_deg in degs.items():
         if in_deg == 0:
-            q.put(term)
-    while q.qsize() > 0:
-        front = q.get()
+            q.add(term)
+    while len(q) > 0:
+        front = q.pop()
         res.append(front)
         for term in tails[front]:
             degs[term] -= 1
             if degs[term] == 0:
-                q.put(term)
+                q.add(term)
     return res
 
 # 根据所依赖数据项的预测值判断是否需要填写当前数据项
@@ -99,7 +111,7 @@ def get_result_4_re(rule_info, context_4_stem_vid):
     res_group_name = [re.sub("\d+","",x) for x in list(res_dict.keys()) if x]
     res_group_name = sorted(list(set(res_group_name)))
     return "\\".join(res_group_name)
-def get_result_4_model(file_re_info, sec_index_re, stem_cn_name, rule_info, context_4_stem_vid, model, tokenizer):
+def get_result_4_model(file_re_info, sec_index_re,stem_cn_name,rule_info,context_4_stem_vid):
     """
     根据对现有27-48中的stem的规则发现，只有三个关于”禁忌症“的字段需要模型进行问答，以此作为特征构建prompt。
     :param file_re_info: 文件名信息，即一级索引
@@ -112,11 +124,11 @@ def get_result_4_model(file_re_info, sec_index_re, stem_cn_name, rule_info, cont
     rule_info = rule_info.replace("\\n", "\n")
     prompt = f"你将阅读一段来自{file_re_info}的病历文本，并根据病历内容回答一个问题。\n病历文本：\n{context_4_stem_vid}\n根据病历内容，请问{rule_info}"
     r, h = model.chat(tokenizer, prompt, history=[], do_sample=False)
-    print("*"*100)
-    print(prompt)
-    print()
-    print(r)
-    print("*"*100)
+    # print("*"*100)
+    # print(prompt)
+    # print()
+    # print(r)
+    # print("*"*100)
     result = parse_model_answer(r, stem_cn_name)
     return result
 def parse_model_answer(response, term):
@@ -159,10 +171,6 @@ def combine_stem_res_4_rule_and_model(stem_results):
         return all_res[0]
     elif len(rule_res) == 1:
         return rule_res[0]
-    # else:
-    #     if
-    #     return "y"
-
     elif len(model_res) == 1:
         return model_res[0]
     else:
@@ -183,11 +191,6 @@ def get_precondition_2_secect_line(stem_cn_name,condition_info):
     elif re.search("围术期",stem_cn_name):
         terms = condition_info.get("围术期",[])
         return terms
-        # for term in terms:
-        #     for start_time,end_time in term:
-        #         start_time = int(start_time) -1
-        #         end_time = int(end_time) +1
-        #         return
     else:
         return ""
 def is_filter_4_sec_index(precondition_re,sec_index):
@@ -209,7 +212,7 @@ def get_context_info_4_vid_4_stem(file_re_info,sec_index_re,cli_info_4_vid,line_
     for file_name, cli_info in cli_info_4_vid.items():
         if re.search(file_re_info, file_name):
             for sec_index, sec_info in cli_info.items():
-                if precondition_re and file_re_info=='医嘱':
+                if precondition_re and re.search("医嘱",file_re_info):
                     if is_filter_4_sec_index(precondition_re, sec_index):
                        continue
                 sec_index = re.sub("_\d{4,}","",sec_index)  # 删除掉时间信息
@@ -285,12 +288,7 @@ def compare_results(vid_2_stem_answer, gold_annotaion_path):
     print(f"pre非空结果数量{len(pre_res_all)}，gold非空结果数量{len(gold_res_all)}。准确率：{eq_num}/{len(compare_res)}，{eq_num/len(compare_res) * 100:.2f}%  !")
     pd.DataFrame.from_records(compare_res).to_excel(os.path.join(results_dir_path,"结果对比.xlsx"))
 
-
 def main():
-    # 0. 加载大语言模型和tokenizer
-    model_path = "/home/ubuntu/hyx/LLaMA-Efficient-Tuning-main/HYX_ChatGLM2_"
-    model, tokenizer = load_model_and_tokenizer(model_path)
-
     # 1. 读取stem的配置信息
     new_stem_info_dict = get_all_stem_info()
     # 2. 读取就诊流水号信息
@@ -339,9 +337,10 @@ def main():
                         stem_res_4_rule = get_result_4_re(rule_info,context_4_stem_vid)
                         stem_results.append({"规则":stem_res_4_rule})
                     elif parser_fun == "模型":
-                        stem_res_4_model = get_result_4_model(file_re_info, sec_index_re,stem_cn_name,rule_info, context_4_stem_vid, model, tokenizer)
-                        stem_results.append({"模型":stem_res_4_model})
-                        print(f"模型预测答案为{stem_res_4_model}\n")
+                        # stem_res_4_model = get_result_4_model(file_re_info, sec_index_re,stem_cn_name,rule_info, context_4_stem_vid)
+                        # stem_results.append({"模型":stem_res_4_model})
+                        # print(f"模型预测答案为{stem_res_4_model}\n")
+                        pass
                     else:
                         raise print(f"{stem_name}\t{stem_cn_name}\t的解析方式为{parser_fun},错误.")
                 else:
@@ -356,13 +355,11 @@ def main():
             except:
                 # print(f"{vid}就诊中{stem_name}:{stem_cn_name}的数据类型为{stem_type}，规则为\n{stem_rule_info}\n预测答案为{stem_res}，不符合要求。\n")
                 pass
-
     # 3.8 根据有向无环图进行后处理
     vid_2_stem_answer = post_processing(vid_2_stem_answer)
 
     # 3.9 保存excel格式的模型预测结果
     vid_2_stem_answer_4_pd = covert_dict_2_pd(vid_2_stem_answer)
-    os.makedirs(results_dir_path,exist_ok=True)
     pd.DataFrame(vid_2_stem_answer_4_pd).to_excel(os.path.join(results_dir_path, "预测结果.xlsx"),)
 
     # 4. 将模型预测结果和标注结果对比
