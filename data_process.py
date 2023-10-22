@@ -367,7 +367,7 @@ if __name__ == '__main__':
     # 以下将xlsx文档数据转为两级结构数据json中
     # data_process_4_xlsx("5-超声心动图结果.xlsx")
     # data_process_4_xlsx("6-其他检查结果.xlsx")
-    # data_process_4_xlsx("7-医嘱.xlsx")
+    data_process_4_xlsx("7-医嘱.xlsx")
     data_process_4_ultrasonic_results("5-超声心动图结果.xlsx")
     data_process_4_other_results("6-其他检查结果.xlsx")
     main_4_simi_resource()

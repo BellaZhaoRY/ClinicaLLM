@@ -6,13 +6,13 @@ import os
 from config.config import *
 import pandas as pd
 from copy import deepcopy
-
+from collections import defaultdict
 from transformers import AutoTokenizer, AutoModel
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
-my_model_path = "/home/ubuntu/hyx/LLaMA-Efficient-Tuning-main/HYX_ChatGLM2_"
-tokenizer = AutoTokenizer.from_pretrained(my_model_path, trust_remote_code=True)
-model = AutoModel.from_pretrained(my_model_path, trust_remote_code=True).cuda()
+# my_model_path = "/home/ubuntu/hyx/LLaMA-Efficient-Tuning-main/HYX_ChatGLM2_"
+# tokenizer = AutoTokenizer.from_pretrained(my_model_path, trust_remote_code=True)
+# model = AutoModel.from_pretrained(my_model_path, trust_remote_code=True).cuda()
 
 # tokenizer = AutoTokenizer.from_pretrained("THUDM/ChatGLM2-6B", trust_remote_code=True)
 # model = AutoModel.from_pretrained("THUDM/ChatGLM2-6B", trust_remote_code=True,cache_dir=model_dir_path).cuda()
@@ -214,7 +214,7 @@ def get_context_info_4_vid_4_stem(file_re_info,sec_index_re,cli_info_4_vid,line_
     for file_name, cli_info in cli_info_4_vid.items():
         if re.search(file_re_info, file_name):
             for sec_index, sec_info in cli_info.items():
-                if precondition_re:
+                if precondition_re and re.search("医嘱",file_re_info):
                     if is_filter_4_sec_index(precondition_re, sec_index):
                        continue
                 sec_index = re.sub("_\d{4,}","",sec_index)  # 删除掉时间信息
@@ -261,19 +261,34 @@ def covert_dict_2_pd(vid_2_stem_answer):
     for vid,stem_info in vid_2_stem_answer.items():
         for name,res in stem_info.items():
             new_res.append({"就诊流水号":vid,	"填报数据项编码":name,	"选项或数据值":res})
-    return  new_res
+    return new_res
 
 def compare_results(vid_2_stem_answer, gold_annotaion_path):
-    pdsx = pd.DataFrame.from_records(vid_2_stem_answer, index=["就诊流水号", "填报数据项编码"],
-                                     columns=["就诊流水号", "填报数据项编码", "选项或数据值"])
-    pdsy = pd.read_excel(gold_annotaion_path,index=["就诊流水号", "填报数据项编码"],
-                                     columns=["就诊流水号", "填报数据项编码", "选项或数据值"])
-    joined_df = pdsx.join(pdsy, lsuffix='_df1', rsuffix='_df2', how='outer')
-    joined_df["结果是否相同"] = joined_df["选项或数据值_df1"] == joined_df["选项或数据值_df2"]
-    joined_df["结果是否相同"] = joined_df["结果是否相同"].map({True: 1, False: None})
-    os.makedirs(results_dir_path,exist_ok=True)
-    joined_df.to_excel(os.path.join(results_dir_path,"结果对比.xlsx"))
-
+    compare_res,stem_names_pre,stem_names_gold = [],set(),set()
+    vid_2_stem_gold =pd.read_excel(gold_annotaion_path,usecols=["就诊流水号", "填报数据项编码", "选项或数据值"]).fillna("").astype(str)
+    vid_2_stem_gold.set_index(["就诊流水号", "填报数据项编码"],inplace = True)
+    new_vid_2_stem_gold = defaultdict(dict)
+    for (vid,name),res_gold in list(vid_2_stem_gold.to_dict().values())[0].items():
+        new_vid_2_stem_gold[vid].update({name:re.sub("^\"|\"$","",res_gold)})
+        stem_names_gold.update({name})
+    eq_num = 0
+    for vid,stem_info_pre_4_vid in vid_2_stem_answer.items():
+        stem_info_gold_4_vid = new_vid_2_stem_gold.get(vid,{})
+        for name,value_pred in stem_info_pre_4_vid.items():
+            stem_names_pre.update({name})
+            value_gold = stem_info_gold_4_vid.get(name,"")
+            is_equal = 1 if value_pred == value_gold else ""
+            eq_num +=1 if is_equal else 0
+            compare_res.append({"就诊流水号":vid, "填报数据项编码":name, "选项或数据值_pre":value_pred,"选项或数据值_gold":value_gold,"是否正确":is_equal})
+    pre_res_all = [x.get("选项或数据值_pre") for x in compare_res if x.get("选项或数据值_pre")]
+    gold_res_all = [x.get("选项或数据值_gold") for x in compare_res if x.get("选项或数据值_gold")]
+    # print("pre_res_all",pre_res_all)
+    # print("gold_res_all",gold_res_all)
+    # print(stem_names_pre)
+    # print(stem_names_gold)
+    print(f"pre的数据采集项数量为{len(stem_names_pre)}，比比赛多的为{stem_names_pre-stem_names_gold}；gold的数据数据采集项数量为{len(stem_names_gold)}，比48个多的为{stem_names_gold-stem_names_pre}！")
+    print(f"pre非空结果数量{len(pre_res_all)}，gold非空结果数量{len(gold_res_all)}。准确率：{eq_num}/{len(compare_res)}，{eq_num/len(compare_res) * 100:.2f}%  !")
+    pd.DataFrame.from_records(compare_res).to_excel(os.path.join(results_dir_path,"结果对比.xlsx"))
 
 def main():
     # 1. 读取stem的配置信息
@@ -322,9 +337,10 @@ def main():
                         stem_res_4_rule = get_result_4_re(rule_info,context_4_stem_vid)
                         stem_results.append({"规则":stem_res_4_rule})
                     elif parser_fun == "模型":
-                        stem_res_4_model = get_result_4_model(file_re_info, sec_index_re,stem_cn_name,rule_info, context_4_stem_vid)
-                        stem_results.append({"模型":stem_res_4_model})
-                        print(f"模型预测答案为{stem_res_4_model}\n")
+                        # stem_res_4_model = get_result_4_model(file_re_info, sec_index_re,stem_cn_name,rule_info, context_4_stem_vid)
+                        # stem_results.append({"模型":stem_res_4_model})
+                        # print(f"模型预测答案为{stem_res_4_model}\n")
+                        pass
                     else:
                         raise print(f"{stem_name}\t{stem_cn_name}\t的解析方式为{parser_fun},错误.")
                 else:
@@ -336,9 +352,8 @@ def main():
                 # 3.7 数据类型为字符串的答案结果应该只有一个，因此需要核对结果
                 check_stem_res_and_type(stem_type,stem_res)
             except:
-                # raise \
-                print(f"{vid}就诊中{stem_name}:{stem_cn_name}的数据类型为{stem_type}，规则为\n{stem_rule_info}\n预测答案为{stem_res}，不符合要求。\n")
-
+                # print(f"{vid}就诊中{stem_name}:{stem_cn_name}的数据类型为{stem_type}，规则为\n{stem_rule_info}\n预测答案为{stem_res}，不符合要求。\n")
+                pass
     # 3.8 根据有向无环图进行后处理
     vid_2_stem_answer = post_processing(vid_2_stem_answer)
 
@@ -350,7 +365,7 @@ def main():
     # 4. 将模型预测结果和标注结果对比
     gold_annotaion_path = "data/orig_datas/8-填报结果.xlsx"
     if os.path.exists(gold_annotaion_path):
-        compare_results(vid_2_stem_answer_4_pd, gold_annotaion_path)
+        compare_results(vid_2_stem_answer, gold_annotaion_path)
 
 
 if __name__ == '__main__':

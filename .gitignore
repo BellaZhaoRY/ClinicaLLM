@@ -1,0 +1,11 @@
+# 通配符：
+      #*：匹配任意字符序列（除了 /）
+      #?：匹配单个字符
+      #**：匹配任意字符序列，包括 /，用于匹配路径中的多层文件夹
+# .gitignore 文件只能忽略尚未被 Git 追踪的文件。
+#    如果某个文件已经被 Git 跟踪，那么在添加到 .gitignore 文件后，需要使用命令 git rm --cached 将其从 Git 中移除
+data/
+model/
+test.py
+rsults/
+*.xlsx
