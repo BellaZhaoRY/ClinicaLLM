@@ -86,7 +86,7 @@ def main():
 
 
 def main_4_check_stem():
-    stem_info_xlsx_path = os.path.join(orig_data_dir_path, "STEMI数据项说明_备注说明_补充信息.xlsx")
+    stem_info_xlsx_path = os.path.join(orig_data_dir_path, "STEMI数据项说明_备注说明_补充信息_v3.xlsx")
     columns_all = ["数据采集项", "数据类型", "备注", "备注3", "选项列表"]
     dfs = pd.read_excel(stem_info_xlsx_path, sheet_name="精简后", index_col="字段名称")[columns_all].fillna("")
     # dfs = pd.read_excel(stem_info_xlsx_path, sheet_name="精简后",index_col="字段名称")
@@ -372,5 +372,4 @@ if __name__ == '__main__':
     data_process_4_other_results("6-其他检查结果.xlsx")
     main_4_simi_resource()
     main_4_get_fisrt_admit_time()
-
 
