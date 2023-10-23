@@ -8,7 +8,7 @@ program_dir_path = os.path.join(config_dir_path, os.path.pardir)
 data_dir_path = os.path.join(program_dir_path, 'data')
 orig_data_dir_path = os.path.join(data_dir_path, 'orig_datas')
 clinical_data_dir_path = os.path.join(orig_data_dir_path, '4-病历文书')
-stem_file = "STEMI数据项说明_备注说明_补充信息_v2.xlsx"
+stem_file = "STEMI数据项说明_备注说明_补充信息_v3.xlsx"
 prepro_data_dir_path = os.path.join(data_dir_path, 'prepro_data')
 prepro_orig_data_dir_path = os.path.join(data_dir_path, 'prepro_orig_datas')
 results_dir_path = os.path.join(program_dir_path, 'results')
@@ -110,8 +110,6 @@ must_answer = {
     ("STEMI-5-2-1", "STEMI-4-1-1"): "n",
     ("STEMI-5-2-2", "STEMI-5-2-1"): "y",
     ("STEMI-5-3-3", "STEMI-5-3-1"): "n",
-    ("STEMI-5-3-4-A", "STEMI-5-3-3"): "y",
-    ("STEMI-5-3-4-B", "STEMI-5-3-3"): "y",
     ("STEMI-5-4-3", "STEMI-5-4-1"): "n",
     ("STEMI-5-4-4", "STEMI-5-4-3"): "y",
     ("STEMI-6-1-2", "STEMI-6-1"): "y",
@@ -127,6 +125,15 @@ may_answer={
 }
 # 取值等于对应值时无需填写
 need_not_answer = {
+    ("STEMI-3-2-3-1", "STEMI-3-2-1"): "n",
+    ("STEMI-3-2-3-2-1","STEMI-3-2-1"): "n",
+    ("STEMI-3-2-3-2-5","STEMI-3-2-1"): "n",
+    ("STEMI-3-2-3-2-2","STEMI-3-2-1"): "n",
+    ("STEMI-3-2-3-2-6","STEMI-3-2-1"): "n",
+    ("STEMI-3-2-3-2-3","STEMI-3-2-1"): "n",
+    ("STEMI-3-2-3-2-7","STEMI-3-2-1"): "n",
+    ("STEMI-3-2-3-2-4","STEMI-3-2-1"): "n",
+    ("STEMI-3-2-3-2-8","STEMI-3-2-1"): "n",
     ("STEMI-3-2-3-2-1","STEMI-3-2-3-1"): "UTD",
     ("STEMI-3-2-3-2-5","STEMI-3-2-3-1"): "UTD",
     ("STEMI-3-2-3-2-2","STEMI-3-2-3-1"): "UTD",
@@ -146,6 +153,21 @@ need_not_answer = {
     ("STEMI-6-3-2-A", "STEMI-5-3-1"): "y",
     ("STEMI-6-3-2-B", "STEMI-5-3-1"): "y",
 }
+# 取值不包含对应值时无需填写
+need_not_answer_rev = {
+    ("STEMI-3-2-3-2-1","STEMI-3-2-3-1"): "a",
+    ("STEMI-3-2-3-2-5","STEMI-3-2-3-1"): "a",
+    ("STEMI-3-2-3-2-2","STEMI-3-2-3-1"): "b",
+    ("STEMI-3-2-3-2-6","STEMI-3-2-3-1"): "b",
+    ("STEMI-3-2-3-2-3","STEMI-3-2-3-1"): "c",
+    ("STEMI-3-2-3-2-7","STEMI-3-2-3-1"): "c",
+    ("STEMI-3-2-3-2-4","STEMI-3-2-3-1"): "d",
+    ("STEMI-3-2-3-2-8","STEMI-3-2-3-1"): "d",
+    ("STEMI-3-2-3-3-2","STEMI-3-2-3-1"): "d",
+    ("STEMI-3-2-3-3-4","STEMI-3-2-3-1"): "a",
+    ("STEMI-3-2-3-3-6","STEMI-3-2-3-1"): "b",
+    ("STEMI-3-2-3-3-12","STEMI-3-2-3-1"): "c",
+}
 
 
 infer_answer_via_dependency = {
@@ -155,4 +177,3 @@ infer_answer_via_dependency = {
         }
     }
 }
-
