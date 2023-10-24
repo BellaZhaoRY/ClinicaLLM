@@ -5,8 +5,6 @@ import re
 from collections import defaultdict
 import pandas as pd
 import openpyxl
-from fuzzywuzzy import process
-from fuzzywuzzy import fuzz
 
 from config.config import *
 
