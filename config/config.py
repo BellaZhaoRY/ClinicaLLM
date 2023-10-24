@@ -115,6 +115,7 @@ must_answer = {
     ("STEMI-6-1-2", "STEMI-6-1"): "y",
     ("STEMI-6-2", "STEMI-4-1-1"): "n",
     ("STEMI-6-2-2", "STEMI-6-2"): "y",
+    ("STEMI-6-3", "STEMI-5-3-1"): "n",
     ("STEMI-6-3-2", "STEMI-6-3"): "y",
     ("STEMI-6-3-2-A", "STEMI-6-3-2"): "a",
     ("STEMI-6-3-2-B", "STEMI-6-3-2"): "b",
@@ -125,6 +126,7 @@ may_answer={
 }
 # 取值等于对应值时无需填写
 need_not_answer = {
+    ("STEMI-2-1-3", "STEMI-2-1-1"): "n",
     ("STEMI-3-2-3-1", "STEMI-3-2-1"): "n",
     ("STEMI-3-2-3-2-1","STEMI-3-2-1"): "n",
     ("STEMI-3-2-3-2-5","STEMI-3-2-1"): "n",
